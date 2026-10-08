@@ -22,3 +22,18 @@ def load_records(file_path=RECORDS_FILE):
         return []
     return records
 
+# Define a function to append and save a new assessment record into the persistent JSON storage file
+def save_record(record, file_path=RECORDS_FILE):
+    """Add one record to the file. Returns True if it was saved."""
+    records = load_records(file_path)
+    records.append(record)
+
+    try:
+        folder = os.path.dirname(file_path)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(records, file, indent=2, ensure_ascii=False)
+        return True
+    except OSError:
+        return False
