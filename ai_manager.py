@@ -66,3 +66,42 @@ Reply with ONLY a JSON object with exactly these fields:
   "evidence": ["short quotes from the chat that support your findings"]
 }}
 Use empty lists when nothing is found."""
+
+def validate_ai_output(data):
+    """Check the AI answer has every field with the right type. Returns a list of problems."""
+    if not isinstance(data, dict):
+        return ["AI answer is not a JSON object"]
+
+    problems = []
+    for field, expected_type in EXPECTED_FIELDS.items():
+        if field not in data:
+            problems.append("missing field: " + field)
+        elif not isinstance(data[field], expected_type):
+            problems.append("wrong type for field: " + field)
+
+    if data.get("payment_plausibility") not in PLAUSIBILITY_VALUES:
+        problems.append("payment_plausibility must be High, Medium or Low")
+
+    return problems
+
+def parse_ai_text(text, validate_function=validate_ai_output):
+    """Turn the AI's text into a dict and check it. Returns (data, problems)."""
+    if not text:
+        return None, ["AI returned an empty answer"]
+
+    # Some models wrap JSON in ```json ... ``` - remove
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None, ["AI answer is not valid JSON"]
+
+    problems = validate_function(data)
+    if problems:
+        return None, problems
+    return data, []
