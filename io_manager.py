@@ -1,3 +1,7 @@
+import os
+
+IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".heic"]
+
 def show_message(text):
     print(text)
 
@@ -16,3 +20,7 @@ def show_main_menu():
         if choice in ["1", "2", "3"]:
             return choice
         show_error("Please type 1, 2 or 3.")
+
+def is_image_file(path):
+    """Return True if the file name ends with an image extension we support."""
+    return os.path.splitext(path)[1].lower() in IMAGE_EXTENSIONS
