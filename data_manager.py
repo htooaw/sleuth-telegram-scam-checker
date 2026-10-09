@@ -70,3 +70,11 @@ def find_saved_record(input_key, records):
         if record.get("input_key") == input_key:
             return record
     return None
+
+
+def find_saved_ai_output(input_key, records):
+    """Return the AI output saved for this input key, or None if not found."""
+    record = find_saved_record(input_key, records)
+    if record is None:
+        return None
+    return record.get("ai_output")
