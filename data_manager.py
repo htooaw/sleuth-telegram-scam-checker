@@ -1,5 +1,7 @@
 # data_manager.py
+# Saves and loads assessment records in a JSON file.
 
+import hashlib
 import json
 import os
 
@@ -49,3 +51,14 @@ def get_deal_parts(user_input):
         str(user_input["price"]),
         user_input["details"].strip().lower(),
     ]
+
+
+# Define a function to generate a unique SHA-256 cryptographic hash fingerprint for Telegram link mode inputs
+def make_input_key(user_input, messages):
+    """Fingerprint for Telegram mode. Same deal + same messages -> same key."""
+    parts = get_deal_parts(user_input)
+    for message in messages:
+        parts.append(message["text"])
+
+    joined = "\n".join(parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
