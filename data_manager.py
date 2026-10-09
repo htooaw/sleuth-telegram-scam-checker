@@ -37,3 +37,15 @@ def save_record(record, file_path=RECORDS_FILE):
         return True
     except OSError:
         return False
+
+
+# Define a helper function to extract the core deal details used for all input fingerprints
+# Basically this is to avoid repeating the same code whenever you need to create an input fingerprint
+def get_deal_parts(user_input):
+    """The deal details used in every fingerprint."""
+    return [
+        user_input["chat"].strip().lower(),
+        user_input["item"].strip().lower(),
+        str(user_input["price"]),
+        user_input["details"].strip().lower(),
+    ]
