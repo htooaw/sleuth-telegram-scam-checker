@@ -67,6 +67,7 @@ Reply with ONLY a JSON object with exactly these fields:
 }}
 Use empty lists when nothing is found."""
 
+# Define a function to validate that the parsed AI response data matches the required schema and types
 def validate_ai_output(data):
     """Check the AI answer has every field with the right type. Returns a list of problems."""
     if not isinstance(data, dict):
@@ -84,6 +85,7 @@ def validate_ai_output(data):
 
     return problems
 
+# Define a function to clean up raw AI text response, parse it into JSON, and run validation checks
 def parse_ai_text(text, validate_function=validate_ai_output):
     """Turn the AI's text into a dict and check it. Returns (data, problems)."""
     if not text:
@@ -106,6 +108,60 @@ def parse_ai_text(text, validate_function=validate_ai_output):
         return None, problems
     return data, []
 
+# Define a function to send a content request directly to the Gemini API using the Google GenAI client
+def call_gemini(contents, api_key):
+    """Send one request to Gemini and return its text answer.
+    contents is the prompt text, or a list of images plus the prompt."""
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            temperature=0,  # as consistent as possible
+            response_mime_type="application/json",
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
+    )
+    return response.text
+
+# Define a function to handle calling Gemini with automatic retries, error handling, and validation loops
+def ask_gemini(contents, validate_function):
+    """Call Gemini, check the JSON answer, and retry if something goes wrong.
+    Returns {"ok": True, "data": {...}} or {"ok": False, "error": "..."}."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logging.error("GEMINI_API_KEY is missing")
+        return {"ok": False, "error": "GEMINI_API_KEY is missing from the .env file"}
+
+    last_error = ""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            text = call_gemini(contents, api_key)
+        except Exception as error:  # network problem, bad key, server busy...
+            last_error = "could not reach Gemini (" + str(error)[:150] + ")"
+        else:
+            data, problems = parse_ai_text(text, validate_function)
+            if data is not None:
+                return {"ok": True, "data": data}
+            last_error = "invalid AI answer (" + "; ".join(problems) + ")"
+
+        logging.warning("AI attempt %d of %d failed: %s", attempt, MAX_ATTEMPTS, last_error)
+        if attempt < MAX_ATTEMPTS:
+            time.sleep(WAIT_SECONDS)
+
+    logging.error("AI analysis gave up after %d attempts", MAX_ATTEMPTS)
+    return {"ok": False, "error": last_error + " after " + str(MAX_ATTEMPTS) + " attempts"}
+
+# Define a high-level function for stage 2 to analyze chat content for fraud warning signs
+def analyze_chat(user_input, messages):
+    """AI stage 2: judge the chat for scam warning signs."""
+    prompt = build_prompt(user_input, messages)
+    return ask_gemini(prompt, validate_ai_output)
+
+
+# ---------- AI stage 1: read chat screenshots ----------
+
+# Define a mapping dictionary of supported image file extensions to their corresponding MIME types
 IMAGE_TYPES = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -114,6 +170,7 @@ IMAGE_TYPES = {
     ".heic": "image/heic",
 }
 
+# Define the specialized prompt instructions used in stage 1 to extract structured messages from screenshots
 SCREENSHOT_PROMPT = """These images are screenshots of a Telegram conversation OR a marketplace listing.
 If it is a chat conversation, the person who took the screenshots is the BUYER. Their messages are usually on the RIGHT side. The other person's messages are usually on the LEFT.
 
@@ -146,6 +203,7 @@ def validate_extracted_messages(data):
                 problems.append("message is missing text field: " + field)
     return problems
 
+# Define a function to load image files from disk, format them for Gemini, and extract chat messages (Stage 1)
 def read_screenshots(image_paths):
     """AI stage 1: turn chat screenshots into a list of messages.
     Returns {"ok": True, "data": [messages]} or {"ok": False, "error": "..."}."""
@@ -171,45 +229,3 @@ def read_screenshots(image_paths):
     if not messages:
         return {"ok": False, "error": "no chat messages could be read from the screenshots"}
     return {"ok": True, "data": messages}
-
-def call_gemini(contents, api_key):
-    """Send one request to Gemini and return its text answer.
-    contents is the prompt text, or a list of images plus the prompt."""
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            temperature=0,  # as consistent as possible
-            response_mime_type="application/json",
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-        ),
-    )
-    return response.text
-
-def ask_gemini(contents, validate_function):
-    """Call Gemini, check the JSON answer, and retry if something goes wrong.
-    Returns {"ok": True, "data": {...}} or {"ok": False, "error": "..."}."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logging.error("GEMINI_API_KEY is missing")
-        return {"ok": False, "error": "GEMINI_API_KEY is missing from the .env file"}
-
-    last_error = ""
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            text = call_gemini(contents, api_key)
-        except Exception as error:  # network problem, bad key, server busy...
-            last_error = "could not reach Gemini (" + str(error)[:150] + ")"
-        else:
-            data, problems = parse_ai_text(text, validate_function)
-            if data is not None:
-                return {"ok": True, "data": data}
-            last_error = "invalid AI answer (" + "; ".join(problems) + ")"
-
-        logging.warning("AI attempt %d of %d failed: %s", attempt, MAX_ATTEMPTS, last_error)
-        if attempt < MAX_ATTEMPTS:
-            time.sleep(WAIT_SECONDS)
-
-    logging.error("AI analysis gave up after %d attempts", MAX_ATTEMPTS)
-    return {"ok": False, "error": last_error + " after " + str(MAX_ATTEMPTS) + " attempts"}
