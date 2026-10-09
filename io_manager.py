@@ -5,7 +5,6 @@ IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".heic"]
 SCREENSHOT_FOLDER = "data/screenshots"
 MAX_SCREENSHOTS = 10
 
-
 def show_message(text):
     print(text)
 
@@ -24,9 +23,16 @@ def show_main_menu():
         if choice in ["1", "2", "3"]:
             return choice
         show_error("Please type 1, 2 or 3.")
+
+def ask_text(label, required=True):
+    """Ask for text. If required, keep asking until it is not blank."""
+    while True:
+        answer = input(label + ": ").strip()
+        if answer or not required:
+            return answer
+        show_error(label + " cannot be empty.")
         
 def ask_chat_source():
-
     """Ask where the chat comes from. Returns "telegram" or "screenshots"."""
     print()
     print("Read the chat from:")
