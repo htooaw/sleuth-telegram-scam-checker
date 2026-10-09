@@ -37,3 +37,14 @@ def find_screenshots_in_folder(folder=SCREENSHOT_FOLDER):
             paths.append(path)
     return paths
 
+def show_transcript(messages):
+    """Show the chat the AI read from the screenshots, so the user can check it."""
+    print()
+    print("The AI read these messages from your screenshots:")
+    for message in messages:
+        line = " " + message["sender"] + ": " + message["text"]
+        if message["date"]:
+            line = " [" + message["date"] + "]" + line
+        print(line)
+
+
