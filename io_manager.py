@@ -16,18 +16,3 @@ def show_main_menu():
         if choice in ["1", "2", "3"]:
             return choice
         show_error("Please type 1, 2 or 3.")
-
-def call_gemini(contents, api_key):
-    """Send one request to Gemini and return its text answer.
-    contents is the prompt text, or a list of images plus the prompt."""
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=contents,
-        config=types.GenerateContentConfig(
-            temperature=0,  # as consistent as possible
-            response_mime_type="application/json",
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-        ),
-    )
-    return response.text
