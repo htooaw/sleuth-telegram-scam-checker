@@ -171,3 +171,45 @@ def read_screenshots(image_paths):
     if not messages:
         return {"ok": False, "error": "no chat messages could be read from the screenshots"}
     return {"ok": True, "data": messages}
+
+def call_gemini(contents, api_key):
+    """Send one request to Gemini and return its text answer.
+    contents is the prompt text, or a list of images plus the prompt."""
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            temperature=0,  # as consistent as possible
+            response_mime_type="application/json",
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
+    )
+    return response.text
+
+def ask_gemini(contents, validate_function):
+    """Call Gemini, check the JSON answer, and retry if something goes wrong.
+    Returns {"ok": True, "data": {...}} or {"ok": False, "error": "..."}."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logging.error("GEMINI_API_KEY is missing")
+        return {"ok": False, "error": "GEMINI_API_KEY is missing from the .env file"}
+
+    last_error = ""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            text = call_gemini(contents, api_key)
+        except Exception as error:  # network problem, bad key, server busy...
+            last_error = "could not reach Gemini (" + str(error)[:150] + ")"
+        else:
+            data, problems = parse_ai_text(text, validate_function)
+            if data is not None:
+                return {"ok": True, "data": data}
+            last_error = "invalid AI answer (" + "; ".join(problems) + ")"
+
+        logging.warning("AI attempt %d of %d failed: %s", attempt, MAX_ATTEMPTS, last_error)
+        if attempt < MAX_ATTEMPTS:
+            time.sleep(WAIT_SECONDS)
+
+    logging.error("AI analysis gave up after %d attempts", MAX_ATTEMPTS)
+    return {"ok": False, "error": last_error + " after " + str(MAX_ATTEMPTS) + " attempts"}
