@@ -62,3 +62,11 @@ def make_input_key(user_input, messages):
 
     joined = "\n".join(parts)
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+def find_saved_record(input_key, records):
+    """Return the saved record for this input key, or None if not found."""
+    for record in records:
+        if record.get("input_key") == input_key:
+            return record
+    return None
