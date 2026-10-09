@@ -1,6 +1,7 @@
 import os
 
 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".heic"]
+SCREENSHOT_FOLDER = "data/screenshots"
 
 def show_message(text):
     print(text)
@@ -24,3 +25,15 @@ def show_main_menu():
 def is_image_file(path):
     """Return True if the file name ends with an image extension we support."""
     return os.path.splitext(path)[1].lower() in IMAGE_EXTENSIONS
+
+def find_screenshots_in_folder(folder=SCREENSHOT_FOLDER):
+    """Return all image files in the folder, sorted by file name."""
+    if not os.path.isdir(folder):
+        return []
+    paths = []
+    for name in sorted(os.listdir(folder)):
+        path = os.path.join(folder, name)
+        if os.path.isfile(path) and is_image_file(path):
+            paths.append(path)
+    return paths
+
