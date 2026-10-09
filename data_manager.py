@@ -78,3 +78,12 @@ def find_saved_ai_output(input_key, records):
     if record is None:
         return None
     return record.get("ai_output")
+
+
+def filter_by_risk_level(records, risk_level):
+    """Return only the records with this risk level, e.g. "High Risk"."""
+    matching = []
+    for record in records:
+        if record.get("result", {}).get("risk_level") == risk_level:
+            matching.append(record)
+    return matching
