@@ -20,3 +20,10 @@ def run_async(coro):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(coro)
+
+async def check_auth():
+    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    await client.connect()
+    is_auth = await client.is_user_authorized()
+    await client.disconnect()
+    return is_auth
