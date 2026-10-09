@@ -106,6 +106,14 @@ def parse_ai_text(text, validate_function=validate_ai_output):
         return None, problems
     return data, []
 
+IMAGE_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+}
+
 SCREENSHOT_PROMPT = """These images are screenshots of a Telegram conversation OR a marketplace listing.
 If it is a chat conversation, the person who took the screenshots is the BUYER. Their messages are usually on the RIGHT side. The other person's messages are usually on the LEFT.
 
@@ -138,6 +146,31 @@ def validate_extracted_messages(data):
                 problems.append("message is missing text field: " + field)
     return problems
 
+def read_screenshots(image_paths):
+    """AI stage 1: turn chat screenshots into a list of messages.
+    Returns {"ok": True, "data": [messages]} or {"ok": False, "error": "..."}."""
+    contents = []
+    for path in image_paths:
+        extension = os.path.splitext(path)[1].lower()
+        try:
+            with open(path, "rb") as file:
+                image_bytes = file.read()
+        except OSError:
+            return {"ok": False, "error": "could not open " + path}
+        contents.append(types.Part.from_bytes(data=image_bytes, mime_type=IMAGE_TYPES[extension]))
+    contents.append(SCREENSHOT_PROMPT)
+
+    result = ask_gemini(contents, validate_extracted_messages)
+    if not result["ok"]:
+        return result
+
+    messages = result["data"]["messages"]
+    for message in messages:
+        # Join text that was split over several lines in the chat bubble
+        message["text"] = " ".join(message["text"].split())
+    if not messages:
+        return {"ok": False, "error": "no chat messages could be read from the screenshots"}
+    return {"ok": True, "data": messages}
 
 def call_gemini(contents, api_key):
     """Send one request to Gemini and return its text answer.
