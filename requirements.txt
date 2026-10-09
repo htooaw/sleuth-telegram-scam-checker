@@ -1,0 +1,5 @@
+google-genai==2.25.0
+python-dotenv==1.2.3
+Telethon==1.45.0
+streamlit==1.64.0
+pytest==9.1.1
