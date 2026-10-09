@@ -180,3 +180,9 @@ def ask_gemini(contents, validate_function):
 
     logging.error("AI analysis gave up after %d attempts", MAX_ATTEMPTS)
     return {"ok": False, "error": last_error + " after " + str(MAX_ATTEMPTS) + " attempts"}
+
+def analyze_chat(user_input, messages):
+    """AI stage 2: judge the chat for scam warning signs."""
+    prompt = build_prompt(user_input, messages)
+    return ask_gemini(prompt, validate_ai_output)
+
