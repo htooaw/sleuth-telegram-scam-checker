@@ -1,5 +1,6 @@
 # data_manager.py
 # Saves and loads assessment records in a JSON file.
+# Also finds old AI answers so the same input always gives the same result.
 
 import hashlib
 import json
@@ -59,6 +60,18 @@ def make_input_key(user_input, messages):
     parts = get_deal_parts(user_input)
     for message in messages:
         parts.append(message["text"])
+
+    joined = "\n".join(parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+# Define a function to generate a unique SHA-256 cryptographic hash fingerprint for screenshot upload mode inputs
+def make_screenshot_key(user_input, image_paths):
+    """Fingerprint for screenshot mode. Same deal + same images -> same key."""
+    parts = get_deal_parts(user_input)
+    for path in image_paths:
+        with open(path, "rb") as file:
+            parts.append(hashlib.sha256(file.read()).hexdigest())
 
     joined = "\n".join(parts)
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
