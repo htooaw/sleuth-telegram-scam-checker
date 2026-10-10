@@ -1,5 +1,6 @@
 import os
 import shlex
+import math
 
 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".heic"]
 SCREENSHOT_FOLDER = "data/screenshots"
@@ -31,7 +32,23 @@ def ask_text(label, required=True):
         if answer or not required:
             return answer
         show_error(label + " cannot be empty.")
-        
+
+def ask_price(label):
+    """Ask for a price in SGD. Must be a number greater than 0."""
+    while True:
+        answer = input(label + ": ").strip().replace("$", "").replace(",", "")
+        try:
+            price = float(answer)
+        except ValueError:
+            show_error("Please type a number, e.g. 650 or 650.50")
+            continue
+
+        if not math.isfinite(price) or price <= 0:
+            show_error("Price must be a number greater than 0.")
+            continue
+        return price
+
+
 def ask_chat_source():
     """Ask where the chat comes from. Returns "telegram" or "screenshots"."""
     print()
