@@ -43,4 +43,8 @@ def run_app():
     result = logic_manager.evaluate_risk(user_data, ai_parsed)
     data_manager.save_record({"input": user_data, "result": result})
     
-      
+     # 5. Display result
+    io_manager.display_result(result)
+
+if __name__ == "__main__":
+    run_app()     
