@@ -1,34 +1,34 @@
-def fetch_chat_messages(chat):
-    """Log in to Telegram and read the last messages of one chat.
-    Returns (messages, error). messages are oldest first."""
-    api_id = os.getenv("TELEGRAM_API_ID")
-    api_hash = os.getenv("TELEGRAM_API_HASH")
-    if not api_id or not api_hash:
-        return [], "TELEGRAM_API_ID or TELEGRAM_API_HASH is missing from the .env file."
-    if not api_id.isdigit():
-        return [], "TELEGRAM_API_ID must be a number."
+def display_result(record):
+    """Print the result of one check."""
+    result = record["result"]
+    print()
+    print("=" * 60)
+    print("RESULT")
+    print("=" * 60)
+    print("Risk level: " + result["risk_level"])
+    print("Reason:     " + result["reason"])
+    if record["from_saved"]:
+        print("(Same chat and details as before - reused the saved AI answer.)")
 
-    os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
-    print("Connecting to Telegram... (the first time, it will ask for your phone number and a login code)")
+    if result["risk_factors"]:
+        print()
+        print("Warning signs:")
+        for factor in result["risk_factors"]:
+            print(" - " + factor)
 
-    try:
-        with TelegramClient(SESSION_FILE, int(api_id), api_hash) as client:
-            entity = client.get_entity(chat)
-            telegram_messages = client.get_messages(entity, limit=MESSAGE_LIMIT)
-    except Exception as error:  # wrong username, no internet, login cancelled...
-        return [], "Could not read this chat: " + str(error)
+    if result["missing_information"]:
+        print()
+        print("Missing information:")
+        for item in result["missing_information"]:
+            print(" - " + item)
 
-    messages = []
-    for telegram_message in telegram_messages:
-        if not telegram_message.message:   # skip photos/stickers without text
-            continue
-        messages.append({
-            "sender": get_sender_name(telegram_message),
-            "date": telegram_message.date.strftime("%Y-%m-%d %H:%M"),
-            "text": telegram_message.message,
-        })
+    if result["evidence"]:
+        print()
+        print("Evidence from the chat:")
+        for quote in result["evidence"]:
+            print(" - " + quote)
 
-    messages.reverse()   # Telegram gives newest first; we want oldest first
-    if not messages:
-        return [], "This chat has no text messages to check."
-    return messages, None
+    print()
+    print("What to do: " + result["action"])
+    print("Note: this is advice to help you decide, not proof that someone is a scammer.")
+    print("=" * 60)
