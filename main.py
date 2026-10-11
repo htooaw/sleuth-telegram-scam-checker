@@ -38,4 +38,9 @@ def run_app():
     if "error" in ai_parsed:
         print(f"\n[Error]: {ai_parsed['error']}")
         return
+
+    # 4. Evaluate risk & save
+    result = logic_manager.evaluate_risk(user_data, ai_parsed)
+    data_manager.save_record({"input": user_data, "result": result})
+    
       
