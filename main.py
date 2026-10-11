@@ -13,4 +13,7 @@ def run_app():
 
     # 2. Scrape Telegram channel history
     print("\nFetching channel message history via Telethon...")
-    chat_history = io_manager.fetch_channel_messages(user_data["group_link"])    
+    chat_history = io_manager.fetch_channel_messages(user_data["group_link"])  
+
+    # 3. Analyze with Gemini
+    ai_res = ai_manager.analyze_transaction_risk(user_data, chat_history)      
