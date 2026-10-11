@@ -10,3 +10,7 @@ def run_app():
 
     # 1. Collect inputs
     user_data = io_manager.get_user_input()
+
+    # 2. Scrape Telegram channel history
+    print("\nFetching channel message history via Telethon...")
+    chat_history = io_manager.fetch_channel_messages(user_data["group_link"])    
