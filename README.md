@@ -69,6 +69,30 @@ docker run -it --env-file .env -v "$(pwd)/data:/app/data" risk-assessor python m
 
 The `-v` option keeps saved checks and the Telegram login in your local `data/` folder between runs.
 
+## Run without Docker
+
+Needs Python 3.12. From the project folder:
+
+```
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**Web app:** `streamlit run app.py`, then open http://localhost:8501
+
+**Command-line app:** `python main.py`
+
+## Using the command-line app
+
+1. Choose **1. Check a new deal** (or **2. View past checks** to list saved checks, filtered by risk level).
+2. Choose where the chat comes from:
+   - **1. Telegram:** enter the seller's @username or a t.me link. The first time, Telegram asks for your phone number and a login code; after that the login is remembered in `data/telegram.session`.
+   - **2. Screenshots:** drag the screenshot files into the terminal and press Enter, or put them in `data/screenshots/` (named in chat order, e.g. `1.png`, `2.png`) and just press Enter. Up to 10 images.
+3. Enter the item, the agreed price and any extra details.
+4. The app shows the messages it read (screenshot mode), then the **risk score**, the **AI feedback and next steps**, the warning signs and the evidence.
+5. Choose **3. Exit** to quit (or press Ctrl+C).
+
 ## Run the tests
 
 The tests use hardcoded sample AI answers, so they need no API key or internet connection.
