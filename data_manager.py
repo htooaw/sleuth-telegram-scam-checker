@@ -9,7 +9,7 @@ import os
 RECORDS_FILE = "data/records.json"
 
 # Define a function to load and return all saved assessment records from the storage file
-def load_records(file_path=RECORDS_FILE):
+def load_records(file_path: str = RECORDS_FILE) -> list[dict]:
     """Return the list of saved records. Missing or broken file -> empty list."""
     if not os.path.exists(file_path):
         return []
@@ -26,7 +26,7 @@ def load_records(file_path=RECORDS_FILE):
     return records
 
 # Define a function to append and save a new assessment record into the persistent JSON storage file
-def save_record(record, file_path=RECORDS_FILE):
+def save_record(record: dict, file_path: str = RECORDS_FILE) -> bool:
     """Add one record to the file. Returns True if it was saved."""
     records = load_records(file_path)
     records.append(record)
@@ -44,7 +44,7 @@ def save_record(record, file_path=RECORDS_FILE):
 
 # Define a helper function to extract the core deal details used for all input fingerprints
 # Basically this is to avoid repeating the same code whenever you need to create an input fingerprint
-def get_deal_parts(user_input):
+def get_deal_parts(user_input: dict) -> list[str]:
     """The deal details used in every fingerprint."""
     return [
         user_input["chat"].strip().lower(),
@@ -55,7 +55,7 @@ def get_deal_parts(user_input):
 
 
 # Define a function to generate a unique SHA-256 cryptographic hash fingerprint for Telegram link mode inputs
-def make_input_key(user_input, messages):
+def make_input_key(user_input: dict, messages: list[dict]) -> str:
     """Fingerprint for Telegram mode. Same deal + same messages -> same key."""
     parts = get_deal_parts(user_input)
     for message in messages:
@@ -66,7 +66,7 @@ def make_input_key(user_input, messages):
 
 
 # Define a function to generate a unique SHA-256 cryptographic hash fingerprint for screenshot upload mode inputs
-def make_screenshot_key(user_input, image_paths):
+def make_screenshot_key(user_input: dict, image_paths: list[str]) -> str:
     """Fingerprint for screenshot mode. Same deal + same images -> same key."""
     parts = get_deal_parts(user_input)
     for path in image_paths:
@@ -77,7 +77,7 @@ def make_screenshot_key(user_input, image_paths):
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
-def find_saved_record(input_key, records):
+def find_saved_record(input_key: str, records: list[dict]) -> dict | None:
     """Return the saved record for this input key, or None if not found."""
     for record in records:
         if record.get("input_key") == input_key:
@@ -85,7 +85,7 @@ def find_saved_record(input_key, records):
     return None
 
 
-def find_saved_ai_output(input_key, records):
+def find_saved_ai_output(input_key: str, records: list[dict]) -> dict | None:
     """Return the AI output saved for this input key, or None if not found."""
     record = find_saved_record(input_key, records)
     if record is None:
@@ -93,7 +93,7 @@ def find_saved_ai_output(input_key, records):
     return record.get("ai_output")
 
 
-def filter_by_risk_level(records, risk_level):
+def filter_by_risk_level(records: list[dict], risk_level: str) -> list[dict]:
     """Return only the records with this risk level, e.g. "High Risk"."""
     matching = []
     for record in records:

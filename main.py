@@ -16,7 +16,7 @@ import logic_manager
 LOG_FILE = "data/app.log"
 
 
-def run_check(user_input, messages, records, input_key, source):
+def run_check(user_input: dict, messages: list[dict], records: list[dict], input_key: str, source: str) -> dict | None:
     """Analyse one deal and return its record, or None if the AI analysis failed."""
     # Same input as before? Reuse the saved AI answer so the result is the same.
     saved_record = data_manager.find_saved_record(input_key, records)
@@ -67,7 +67,7 @@ def run_check(user_input, messages, records, input_key, source):
     return record
 
 
-def get_telegram_messages(user_input):
+def get_telegram_messages(user_input: dict) -> tuple[list[dict] | None, str | None]:
     """Telegram mode: read the chat. Returns (messages, input_key) or (None, None)."""
     messages, error = io_manager.fetch_chat_messages(user_input["chat"])
     if error:
@@ -78,7 +78,7 @@ def get_telegram_messages(user_input):
     return messages, data_manager.make_input_key(user_input, messages)
 
 
-def get_screenshot_messages(user_input, records):
+def get_screenshot_messages(user_input: dict, records: list[dict]) -> tuple[list[dict] | None, str | None]:
     """Screenshot mode: AI stage 1 reads the images. Returns (messages, input_key) or (None, None)."""
     image_paths, error = io_manager.ask_screenshot_paths()
     if error:
@@ -103,7 +103,7 @@ def get_screenshot_messages(user_input, records):
     return messages, input_key
 
 
-def check_new_deal(records):
+def check_new_deal(records: list[dict]) -> None:
     """Menu option 1: check a new deal."""
     source = io_manager.ask_chat_source()
     user_input = io_manager.get_deal_details(source)
@@ -121,7 +121,7 @@ def check_new_deal(records):
         io_manager.display_result(record)
 
 
-def view_past_checks(records):
+def view_past_checks(records: list[dict]) -> None:
     """Menu option 2: list past checks, optionally only one risk level."""
     risk_level = io_manager.ask_history_filter()
     if risk_level is None:
@@ -130,7 +130,7 @@ def view_past_checks(records):
         io_manager.display_history(data_manager.filter_by_risk_level(records, risk_level))
 
 
-def main():
+def main() -> None:
     load_dotenv()
 
     # Write warnings (e.g. AI failures) to a log file
