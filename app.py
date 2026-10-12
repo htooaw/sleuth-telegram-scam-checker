@@ -266,6 +266,17 @@ def show_result(record):
         for quote in result["evidence"]:
             st.markdown(f"- {quote}")
 
+    # Show the chat the AI read, so the user can spot anything it misread
+    messages = record.get("messages", [])
+    if messages:
+        with st.expander(f"Messages the AI read ({len(messages)})"):
+            for message in messages:
+                text = message["text"].replace("$", "\\$")   # stop "$" being shown as maths
+                line = f"**{message['sender']}:** {text}"
+                if message["date"]:
+                    line = f"`{message['date']}` " + line
+                st.markdown(line)
+
     st.caption("This is advice to help you decide, not proof that someone is a scammer.")
 
 
