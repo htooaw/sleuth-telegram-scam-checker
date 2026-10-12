@@ -15,3 +15,6 @@ venv/
 #Code Editors
 .idea/
 .vscode/
+
+# App data (records, screenshots, Telegram login)
+data/

@@ -229,3 +229,48 @@ def read_screenshots(image_paths):
     if not messages:
         return {"ok": False, "error": "no chat messages could be read from the screenshots"}
     return {"ok": True, "data": messages}
+
+def build_feedback_prompt(user_input, ai_output, score_result):
+    """Create the instructions for Gemini to explain the score to the buyer."""
+    return f"""You are helping a BUYER on a Telegram marketplace decide whether a deal is safe.
+Our rule-based checker has already given this deal a risk score. Do NOT change the score.
+Explain it in simple, friendly language and tell the buyer what to do next.
+
+Deal:
+- Item: {user_input['item']}
+- Agreed price: SGD {user_input['price']:.2f}
+
+Risk score: {score_result['score']} out of {score_result['max_score']} ({score_result['risk_level']})
+Warning signs found: {json.dumps(score_result['risk_factors'])}
+Missing information: {json.dumps(score_result['missing_information'])}
+Evidence from the chat: {json.dumps(score_result['evidence'])}
+Summary of the deal: {ai_output.get('transaction_summary', '')}
+
+Reply with ONLY a JSON object with exactly these fields:
+{{
+  "feedback": "2 to 4 sentences explaining why the deal got this score",
+  "next_steps": ["2 to 4 short, practical things the buyer should do next"]
+}}"""
+
+def validate_feedback(data):
+    """Check the feedback answer has a feedback text and a list of next steps."""
+    if not isinstance(data, dict):
+        return ["AI answer is not a JSON object"]
+
+    problems = []
+    if not isinstance(data.get("feedback"), str) or not data.get("feedback").strip():
+        problems.append("feedback must be a non-empty text")
+    if not isinstance(data.get("next_steps"), list):
+        problems.append("next_steps must be a list")
+    else:
+        for step in data["next_steps"]:
+            if not isinstance(step, str):
+                problems.append("each next step must be text")
+    return problems
+
+def generate_feedback(user_input, ai_output, score_result):
+    """AI stage 3: write feedback that explains the score.
+    Returns {"ok": True, "data": {"feedback": ..., "next_steps": [...]}} or {"ok": False, "error": "..."}."""
+    prompt = build_feedback_prompt(user_input, ai_output, score_result)
+    return ask_gemini(prompt, validate_feedback)
+
