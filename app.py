@@ -13,20 +13,29 @@ import io_manager
 # Load environment variables
 load_dotenv()
 
-# --- IMPORTANT: MUST MATCH io_manager.py ---
-SESSION_NAME = "anon"  
+# Use the same login file as io_manager, so logging in here lets fetch_chat_messages read chats
+SESSION_NAME = io_manager.SESSION_FILE
 API_ID = int(os.environ.get("TELEGRAM_API_ID", 0))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
+
+SCREENSHOT_FOLDER = io_manager.SCREENSHOT_FOLDER
+
+# Shown when the AI feedback could not be generated
+FALLBACK_ADVICE = {
+    "High Risk": "Do not pay. Stop the deal or insist on meeting in person.",
+    "Medium Risk": "Be careful. Ask for the missing details and avoid paying in advance.",
+    "Low Risk": "No major warning signs. Still use a safe payment method.",
+}
 
 # Initialize records in session state
 if "records" not in st.session_state:
     st.session_state.records = data_manager.load_records()
 
-os.makedirs("data/screenshots", exist_ok=True)
+os.makedirs(SCREENSHOT_FOLDER, exist_ok=True)
 
 # UI: Page Configuration & Theme
 st.set_page_config(
-    page_title="Telegram Risk Assessor", 
+    page_title="Telegram Risk Assessor",
     layout="centered"
 )
 
@@ -38,7 +47,7 @@ st.markdown("""
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
-    
+
     /* Modernize buttons */
     .stButton>button {
         width: 100%;
@@ -52,7 +61,7 @@ st.markdown("""
         background-color: #e03e3e;
         border-color: #e03e3e;
     }
-    
+
     /* Headers */
     h1 {
         color: #1f2937;
@@ -76,26 +85,25 @@ async def check_auth():
     return is_auth
 
 
-# ==========================================
-# SIDEBAR: TELEGRAM AUTHENTICATION UI
-# ==========================================
-with st.sidebar:
-    st.image("https://img.icons8.com/color/96/telegram-app--v1.png", width=60)
-    st.title("Telegram Auth")
-    st.markdown("---")
+def show_telegram_login():
+    """Sidebar login. Only shown in Telegram username mode."""
+    with st.sidebar:
+        st.title("Telegram Login")
+        st.markdown("---")
 
-    if "tg_authenticated" not in st.session_state:
-        try:
-            st.session_state.tg_authenticated = run_async(check_auth())
-        except Exception:
-            st.session_state.tg_authenticated = False
+        if "tg_authenticated" not in st.session_state:
+            try:
+                st.session_state.tg_authenticated = run_async(check_auth())
+            except Exception:
+                st.session_state.tg_authenticated = False
 
-    if st.session_state.tg_authenticated:
-        st.success("Logged in securely")
-    else:
-        st.warning("Not authenticated")
+        if st.session_state.tg_authenticated:
+            st.success("Logged in securely")
+            return
+
+        st.warning("Not logged in")
         phone = st.text_input("Phone Number (e.g., +65...):")
-        
+
         if "phone_hash" not in st.session_state:
             if st.button("Send Login Code"):
                 async def send_code():
@@ -104,7 +112,7 @@ with st.sidebar:
                     res = await client.send_code_request(phone)
                     await client.disconnect()
                     return res.phone_code_hash
-                
+
                 try:
                     st.session_state.phone_hash = run_async(send_code())
                     st.session_state.phone_number = phone
@@ -119,7 +127,7 @@ with st.sidebar:
                     await client.connect()
                     await client.sign_in(phone=st.session_state.phone_number, code=code, phone_code_hash=st.session_state.phone_hash)
                     await client.disconnect()
-                
+
                 try:
                     run_async(submit_code())
                     st.session_state.tg_authenticated = True
@@ -129,142 +137,229 @@ with st.sidebar:
                     st.error(f"Failed: {e}")
 
 
+def get_messages(source, user_input, uploaded_files):
+    """Read the chat for the chosen mode. Returns (messages, input_key) or (None, None)."""
+    if source == "Telegram username":
+        # Telethon needs an event loop in this thread
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        messages, error = io_manager.fetch_chat_messages(user_input["chat"])
+        if error:
+            st.error(f"Failed to read chat: {error}")
+            return None, None
+        return messages, data_manager.make_input_key(user_input, messages)
+
+    # Screenshot mode: save the uploads, then AI stage 1 reads them
+    for old_file in os.listdir(SCREENSHOT_FOLDER):
+        os.remove(os.path.join(SCREENSHOT_FOLDER, old_file))
+
+    image_paths = []
+    for f in uploaded_files:
+        path = os.path.join(SCREENSHOT_FOLDER, f.name)
+        with open(path, "wb") as disk_file:
+            disk_file.write(f.getbuffer())
+        image_paths.append(path)
+
+    input_key = data_manager.make_screenshot_key(user_input, image_paths)
+
+    # Same screenshots checked before? Skip stage 1 and reuse the saved chat
+    if data_manager.find_saved_record(input_key, st.session_state.records) is not None:
+        return [], input_key
+
+    extraction = ai_manager.read_screenshots(image_paths)
+    if not extraction["ok"]:
+        st.error(f"Could not read screenshots: {extraction['error']}")
+        return None, None
+    return extraction["data"], input_key
+
+
+def run_assessment(source, user_input, messages, input_key):
+    """AI stage 2 + score + AI stage 3. Returns the record, or None if the AI failed."""
+    saved_record = data_manager.find_saved_record(input_key, st.session_state.records)
+    if saved_record is not None:
+        ai_result = {"ok": True, "data": saved_record["ai_output"]}
+        messages = saved_record.get("messages", messages)
+        from_saved = True
+    else:
+        ai_result = ai_manager.analyze_chat(user_input, messages)
+        from_saved = False
+
+    if not ai_result["ok"]:
+        st.error(f"AI Analysis Failed: {ai_result.get('error', 'Unknown error')}")
+        return None
+
+    # The logic manager decides the score, the AI only explains it
+    result = logic_manager.evaluate_risk(ai_result["data"])
+
+    feedback = saved_record.get("feedback") if saved_record is not None else None
+    if feedback is None:
+        feedback_result = ai_manager.generate_feedback(user_input, ai_result["data"], result)
+        if feedback_result["ok"]:
+            feedback = feedback_result["data"]
+        else:
+            st.warning("AI feedback is not available right now: " + feedback_result["error"])
+
+    record = {
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "source": source,
+        "input_key": input_key,
+        "input": user_input,
+        "message_count": len(messages),
+        "messages": messages,
+        "ai_output": ai_result["data"],
+        "result": result,
+        "feedback": feedback,
+        "from_saved": from_saved,
+    }
+
+    if not from_saved:
+        if data_manager.save_record(record):
+            st.session_state.records.append(record)
+        else:
+            st.error("Could not save this check to the records file.")
+
+    return record
+
+
+def show_result(record):
+    """Show the score, the AI feedback and the warning signs."""
+    result = record["result"]
+    score = result.get("score", 0)
+    max_score = result.get("max_score", logic_manager.MAX_SCORE)
+    risk_level = result["risk_level"]
+
+    st.markdown("### Final Risk Report")
+    message = f"**Risk score: {score} / {max_score} ({risk_level})**"
+    if risk_level == "High Risk":
+        st.error(message)
+    elif risk_level == "Medium Risk":
+        st.warning(message)
+    else:
+        st.success(message)
+    st.progress(score / max_score)
+
+    if record.get("from_saved"):
+        st.caption("Same chat and details as before - reused the saved AI analysis.")
+
+    feedback = record.get("feedback")
+    if feedback:
+        st.markdown("#### What this means")
+        st.write(feedback["feedback"])
+        if feedback["next_steps"]:
+            st.markdown("#### What to do next")
+            for step in feedback["next_steps"]:
+                st.markdown(f"- {step}")
+    else:
+        st.info(f"**Recommended Action:** {FALLBACK_ADVICE[risk_level]}")
+
+    if result.get("risk_factors"):
+        st.markdown("#### Warning Signs Found")
+        for factor in result["risk_factors"]:
+            st.markdown(f"- {factor}")
+
+    if result.get("missing_information"):
+        st.markdown("#### Missing Information")
+        for info in result["missing_information"]:
+            st.markdown(f"- {info}")
+
+    if result.get("evidence"):
+        st.markdown("#### Evidence From the Chat")
+        for quote in result["evidence"]:
+            st.markdown(f"- {quote}")
+
+    st.caption("This is advice to help you decide, not proof that someone is a scammer.")
+
+
+def show_new_check():
+    """Page 1: check a new deal, from screenshots or a Telegram username."""
+    source = st.radio("How do you want to share the chat?", ["Screenshots", "Telegram username"], horizontal=True)
+
+    # Only the username mode needs a Telegram login
+    if source == "Telegram username":
+        show_telegram_login()
+
+    user_input = {}
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if source == "Telegram username":
+            user_input["chat"] = st.text_input("Telegram Chat (@username or link):", placeholder="@seller_admin")
+        else:
+            user_input["chat"] = st.text_input("Seller Handle (Optional):", value="") or "Screenshots"
+    with col2:
+        user_input["item"] = st.text_input("Item Name:", placeholder="e.g., Vintage OOTD Set")
+
+    col3, col4 = st.columns([1, 1])
+    with col3:
+        user_input["price"] = float(st.number_input("Agreed Price (SGD):", min_value=0.0, step=1.0, value=0.0))
+    with col4:
+        user_input["details"] = st.text_input("Extra Details (Optional):", value="", placeholder="e.g., meetup vs delivery")
+
+    uploaded_files = []
+    if source == "Screenshots":
+        uploaded_files = st.file_uploader("Drag and drop chat screenshots here", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
+
+    st.markdown("---")
+
+    if not st.button("Assess Deal Risk", use_container_width=True):
+        return
+
+    if source == "Telegram username" and not st.session_state.get("tg_authenticated"):
+        st.error("Please log in to Telegram in the sidebar first.")
+    elif source == "Telegram username" and not user_input["chat"]:
+        st.error("Please enter the seller's Telegram @username or link.")
+    elif not user_input["item"]:
+        st.error("Please enter the item name.")
+    elif user_input["price"] <= 0:
+        st.error("Please enter the agreed price.")
+    elif source == "Screenshots" and not uploaded_files:
+        st.error("Please upload at least one screenshot.")
+    else:
+        with st.spinner("Analysing the chat..."):
+            messages, input_key = get_messages(source, user_input, uploaded_files)
+            record = None
+            if messages is not None:
+                record = run_assessment(source, user_input, messages, input_key)
+        if record is not None:
+            show_result(record)
+
+
+def show_past_checks():
+    """Page 2: list the saved checks, newest first, with a risk level filter."""
+    choice = st.selectbox("Show which checks?", ["All", "High Risk", "Medium Risk", "Low Risk"])
+    if choice == "All":
+        records = st.session_state.records
+    else:
+        records = data_manager.filter_by_risk_level(st.session_state.records, choice)
+
+    if not records:
+        st.info("No matching past checks.")
+        return
+
+    for record in reversed(records):
+        deal = record["input"]
+        result = record["result"]
+        score = result.get("score")
+        score_text = f"{score}/{result.get('max_score', logic_manager.MAX_SCORE)}" if score is not None else "no score"
+        title = f"{record['time']} | {deal['item']} | SGD {deal['price']:.2f} | {result['risk_level']} ({score_text})"
+        with st.expander(title):
+            st.write(f"**Seller / chat:** {deal['chat']}")
+            feedback = record.get("feedback")
+            if feedback:
+                st.write(feedback["feedback"])
+            for factor in result.get("risk_factors", []):
+                st.markdown(f"- {factor}")
+
+
 # ==========================================
-# MAIN PAGE: DASHBOARD INTERFACE
+# MAIN PAGE
 # ==========================================
 st.title("Telegram Risk Assessor")
 st.markdown("Protect your online marketplace transactions with real-time AI behavioral analysis.")
 st.markdown("---")
 
-# UI: Mode selector layout
-source = st.radio("Choose Verification Source:", ["Screenshots", "Telegram Link"], horizontal=True)
-
-user_input = {}
-
-# UI: Adding Columns for better layout
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    if source == "Telegram Link":
-        user_input["chat"] = st.text_input("Telegram Chat (@username or link):", placeholder="@seller_admin")
-    else:
-        user_input["chat"] = st.text_input("Seller Handle (Optional):", value="")
-
-with col2:
-    user_input["item"] = st.text_input("Item Name:", placeholder="e.g., Vintage OOTD Set")
-
-col3, col4 = st.columns([1, 1])
-with col3:
-    user_input["price"] = float(st.number_input("Agreed Price (SGD):", min_value=0.0, step=1.0, value=0.0))
-with col4:
-    user_input["details"] = st.text_input("Extra Details (Optional):", value="", placeholder="e.g., meetup vs delivery")
-
-uploaded_files = []
-if source == "Screenshots":
-    st.markdown("")
-    uploaded_files = st.file_uploader("Drag and drop chat screenshots here", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-
+page = st.radio("What would you like to do?", ["Check a new deal", "View past checks"], horizontal=True)
 st.markdown("---")
 
-# --- EXECUTION LOGIC ---
-if st.button("Assess Deal Risk", use_container_width=True):
-    if source == "Telegram Link" and not st.session_state.tg_authenticated:
-        st.error("⚠️ You must authenticate via the sidebar login first!")
-    elif not user_input["item"]:
-        st.error("⚠️ Please specify the item name before running the assessment.")
-    elif source == "Telegram Link" and not user_input.get("chat"):
-        st.error("⚠️ Please enter a valid Telegram chat identifier.")
-    elif source == "Screenshots" and not uploaded_files:
-        st.error("⚠️ Please upload at least one screenshot to analyze.")
-    else:
-        with st.spinner("Analyzing transaction behaviour and security flags..."):
-            messages = None
-            input_key = None
-            
-            # 1. Gather Data based on source
-            if source == "Telegram Link":
-                messages, error = io_manager.fetch_chat_messages(user_input["chat"])
-                if error:
-                    st.error(f"Failed to read chat: {error}")
-                    messages = None
-                else:
-                    input_key = data_manager.make_input_key(user_input, messages)
-                    
-            elif source == "Screenshots":
-                for old_file in os.listdir("data/screenshots"):
-                    os.remove(os.path.join("data/screenshots", old_file))
-                
-                image_paths = []
-                for f in uploaded_files:
-                    path = os.path.join("data/screenshots", f.name)
-                    with open(path, "wb") as disk_file:
-                        disk_file.write(f.getbuffer())
-                    image_paths.append(path)
-                
-                input_key = data_manager.make_screenshot_key(user_input, image_paths)
-                
-                saved_record = data_manager.find_saved_record(input_key, st.session_state.records)
-                if saved_record is not None:
-                    messages = [] 
-                else:
-                    extraction = ai_manager.read_screenshots(image_paths)
-                    if not extraction["ok"]:
-                        st.error(f"Could not read screenshots: {extraction['error']}")
-                    else:
-                        messages = extraction["data"]
-
-            # 2. Run Assessment 
-            if messages is not None:
-                saved_record = data_manager.find_saved_record(input_key, st.session_state.records)
-                if saved_record is not None:
-                    ai_result = {"ok": True, "data": saved_record["ai_output"]}
-                    messages = saved_record.get("messages", messages)
-                    from_saved = True
-                else:
-                    ai_result = ai_manager.analyze_chat(user_input, messages)
-                    from_saved = False
-
-                if not ai_result["ok"]:
-                    st.error(f"AI Analysis Failed: {ai_result.get('error', 'Unknown error')}")
-                else:
-                    result = logic_manager.evaluate_risk(ai_result)
-                    
-                    record = {
-                        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "source": source.lower(),
-                        "input_key": input_key,
-                        "input": user_input,
-                        "message_count": len(messages),
-                        "messages": messages,
-                        "ai_output": ai_result.get("data"),
-                        "result": result,
-                        "from_saved": from_saved,
-                    }
-                    
-                    if not from_saved:
-                        if data_manager.save_record(record):
-                            st.session_state.records.append(record)
-                    
-                    # 3. Display Polished Results Dashboard
-                    st.markdown("### Final Risk Report")
-                    
-                    risk_level = result['risk_level']
-                    if risk_level == "High Risk":
-                        st.error(f"🚨 **Risk Level: {risk_level}**")
-                    elif risk_level == "Medium Risk":
-                        st.warning(f"⚠️ **Risk Level: {risk_level}**")
-                    else:
-                        st.success(f"✅ **Risk Level: {risk_level}**")
-                    
-                    st.info(f"**Recommended Action:** {result['action']}")
-                    st.markdown(f"**Analysis Summary:** {result['reason']}")
-                    
-                    if result.get("risk_factors"):
-                        st.markdown("#### Warning Signs Found:")
-                        for factor in result["risk_factors"]:
-                            st.markdown(f"- {factor}")
-                            
-                    if result.get("missing_information"):
-                        st.markdown("#### Missing Information:")
-                        for info in result["missing_information"]:
-                            st.markdown(f"- {info}")
+if page == "Check a new deal":
+    show_new_check()
+else:
+    show_past_checks()
