@@ -10,13 +10,13 @@ MAX_SCREENSHOTS = 10
 SESSION_FILE = "data/telegram"   # Telethon adds ".session"
 MESSAGE_LIMIT = 50
 
-def show_message(text):
+def show_message(text: str) -> None:
     print(text)
 
-def show_error(text):
+def show_error(text: str) -> None:
     print("[Error] " + text)
 
-def show_main_menu():
+def show_main_menu() -> str:
     """Print the menu and return the user's choice: "1", "2" or "3"."""
     print()
     print("=== Telegram Marketplace Risk Assessor (Buyer) ===")
@@ -29,7 +29,7 @@ def show_main_menu():
             return choice
         show_error("Please type 1, 2 or 3.")
 
-def ask_text(label, required=True):
+def ask_text(label: str, required: bool = True) -> str:
     """Ask for text. If required, keep asking until it is not blank."""
     while True:
         answer = input(label + ": ").strip()
@@ -37,7 +37,7 @@ def ask_text(label, required=True):
             return answer
         show_error(label + " cannot be empty.")
 
-def ask_price(label):
+def ask_price(label: str) -> float:
     """Ask for a price in SGD. Must be a number greater than 0."""
     while True:
         answer = input(label + ": ").strip().replace("$", "").replace(",", "")
@@ -53,7 +53,7 @@ def ask_price(label):
         return price
 
 
-def ask_chat_source():
+def ask_chat_source() -> str:
     """Ask where the chat comes from. Returns "telegram" or "screenshots"."""
     print()
     print("Read the chat from:")
@@ -68,11 +68,11 @@ def ask_chat_source():
         show_error("Please type 1 or 2.")
 
 
-def is_image_file(path):
+def is_image_file(path: str) -> bool:
     """Return True if the file name ends with an image extension we support."""
     return os.path.splitext(path)[1].lower() in IMAGE_EXTENSIONS
 
-def find_screenshots_in_folder(folder=SCREENSHOT_FOLDER):
+def find_screenshots_in_folder(folder: str = SCREENSHOT_FOLDER) -> list[str]:
     """Return all image files in the folder, sorted by file name."""
     if not os.path.isdir(folder):
         return []
@@ -83,7 +83,7 @@ def find_screenshots_in_folder(folder=SCREENSHOT_FOLDER):
             paths.append(path)
     return paths
 
-def show_transcript(messages):
+def show_transcript(messages: list[dict]) -> None:
     """Show the chat the AI read from the screenshots, so the user can check it."""
     print()
     print("The AI read these messages from your screenshots:")
@@ -93,7 +93,7 @@ def show_transcript(messages):
             line = " [" + message["date"] + "]" + line
         print(line)
 
-def ask_screenshot_paths():
+def ask_screenshot_paths() -> tuple[list[str], str | None]:
     """Let the user drag screenshots into the terminal, or use the screenshots folder.
     Returns (paths, error)."""
     os.makedirs(SCREENSHOT_FOLDER, exist_ok=True)
@@ -138,7 +138,7 @@ def ask_screenshot_paths():
             print(" - " + os.path.basename(path))
         return paths, None
 
-def get_deal_details(source):
+def get_deal_details(source: str) -> dict:
     """Ask the buyer about the deal they want to check."""
     print()
     if source == "telegram":
@@ -152,7 +152,7 @@ def get_deal_details(source):
     price = ask_price("Agreed price (SGD)")
     details = ask_text("Extra details (optional, press Enter to skip)", required=False)
     return {"chat": chat, "item": item, "price": price, "details": details}
-def get_sender_name(telegram_message):
+def get_sender_name(telegram_message: object) -> str:
     """Return a readable name for who sent a Telegram message."""
     if telegram_message.out:
         return "You"
@@ -167,7 +167,7 @@ def get_sender_name(telegram_message):
         return sender.title
     return "Unknown"
 
-def fetch_chat_messages(chat):
+def fetch_chat_messages(chat: str) -> tuple[list[dict], str | None]:
     """Log in to Telegram and read the last messages of one chat.
     Returns (messages, error). messages are oldest first."""
     api_id = os.getenv("TELEGRAM_API_ID")
@@ -209,7 +209,7 @@ FALLBACK_ADVICE = {
     "Low Risk": "No major warning signs. Still use a safe payment method.",
 }
 
-def display_result(record):
+def display_result(record: dict) -> None:
     """Print the score, the AI feedback and the warning signs of one check."""
     result = record["result"]
     print()
@@ -257,7 +257,7 @@ def display_result(record):
     print("Note: this is advice to help you decide, not proof that someone is a scammer.")
     print("=" * 60)
 
-def ask_history_filter():
+def ask_history_filter() -> str | None:
     print()
     print("Show which checks?")
     print("1. All")
@@ -277,7 +277,7 @@ def ask_history_filter():
         show_error("Please type 1, 2, 3 or 4.")
 
 
-def display_history(records):
+def display_history(records: list[dict]) -> None:
     print()
     if not records:
         print("No matching past checks.")

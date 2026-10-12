@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 
 # Import the core genai client library from the Google GenAI SDK
 from google import genai
@@ -32,7 +33,7 @@ EXPECTED_FIELDS = {
 }
 PLAUSIBILITY_VALUES = ["High", "Medium", "Low"]
 
-def describe_deal(user_input):
+def describe_deal(user_input: dict) -> str:
     """Deal details for the prompts. The frontend only asks for the chat, so these may be empty."""
     if not user_input.get("item"):
         return "The buyer did not type any deal details. Work out the item, price and payment terms from the chat."
@@ -42,7 +43,7 @@ def describe_deal(user_input):
 - Extra details: {details}"""
 
 # Define a function to construct the prompt and format the chat history for stage 2 scam analysis
-def build_prompt(user_input, messages):
+def build_prompt(user_input: dict, messages: list[dict]) -> str:
     """Create the instructions and chat text we send to Gemini."""
     chat_lines = []
     for message in messages:
@@ -73,7 +74,7 @@ Reply with ONLY a JSON object with exactly these fields:
 Use empty lists when nothing is found."""
 
 # Define a function to validate that the parsed AI response data matches the required schema and types
-def validate_ai_output(data):
+def validate_ai_output(data: object) -> list[str]:
     """Check the AI answer has every field with the right type. Returns a list of problems."""
     if not isinstance(data, dict):
         return ["AI answer is not a JSON object"]
@@ -91,7 +92,7 @@ def validate_ai_output(data):
     return problems
 
 # Define a function to clean up raw AI text response, parse it into JSON, and run validation checks
-def parse_ai_text(text, validate_function=validate_ai_output):
+def parse_ai_text(text: str, validate_function: Callable[[object], list[str]] = validate_ai_output) -> tuple[dict | None, list[str]]:
     """Turn the AI's text into a dict and check it. Returns (data, problems)."""
     if not text:
         return None, ["AI returned an empty answer"]
@@ -114,7 +115,7 @@ def parse_ai_text(text, validate_function=validate_ai_output):
     return data, []
 
 # Define a function to send a content request directly to the Gemini API using the Google GenAI client
-def call_gemini(contents, api_key):
+def call_gemini(contents: str | list, api_key: str) -> str:
     """Send one request to Gemini and return its text answer.
     contents is the prompt text, or a list of images plus the prompt."""
     client = genai.Client(api_key=api_key)
@@ -130,7 +131,7 @@ def call_gemini(contents, api_key):
     return response.text
 
 # Define a function to handle calling Gemini with automatic retries, error handling, and validation loops
-def ask_gemini(contents, validate_function):
+def ask_gemini(contents: str | list, validate_function: Callable[[object], list[str]]) -> dict:
     """Call Gemini, check the JSON answer, and retry if something goes wrong.
     Returns {"ok": True, "data": {...}} or {"ok": False, "error": "..."}."""
     api_key = os.getenv("GEMINI_API_KEY")
@@ -158,7 +159,7 @@ def ask_gemini(contents, validate_function):
     return {"ok": False, "error": last_error + " after " + str(MAX_ATTEMPTS) + " attempts"}
 
 # Define a high-level function for stage 2 to analyze chat content for fraud warning signs
-def analyze_chat(user_input, messages):
+def analyze_chat(user_input: dict, messages: list[dict]) -> dict:
     """AI stage 2: judge the chat for scam warning signs."""
     prompt = build_prompt(user_input, messages)
     return ask_gemini(prompt, validate_ai_output)
@@ -193,7 +194,7 @@ Use "You" for the buyer. For the other person use their name if it is shown, oth
 Do not add, fix or summarise any text. If there is absolutely no text at all in the images, return {"messages": []}."""
 
 # Define a function to validate the structured output data extracted during stage 1 screenshot processing
-def validate_extracted_messages(data):
+def validate_extracted_messages(data: object) -> list[str]:
     """Check the stage 1 answer: a list of messages with sender, date and text."""
     if not isinstance(data, dict) or not isinstance(data.get("messages"), list):
         return ["AI answer must be an object with a 'messages' list"]
@@ -209,7 +210,7 @@ def validate_extracted_messages(data):
     return problems
 
 # Define a function to load image files from disk, format them for Gemini, and extract chat messages (Stage 1)
-def read_screenshots(image_paths):
+def read_screenshots(image_paths: list[str]) -> dict:
     """AI stage 1: turn chat screenshots into a list of messages.
     Returns {"ok": True, "data": [messages]} or {"ok": False, "error": "..."}."""
     contents = []
@@ -235,7 +236,7 @@ def read_screenshots(image_paths):
         return {"ok": False, "error": "no chat messages could be read from the screenshots"}
     return {"ok": True, "data": messages}
 
-def build_feedback_prompt(user_input, ai_output, score_result):
+def build_feedback_prompt(user_input: dict, ai_output: dict, score_result: dict) -> str:
     """Create the instructions for Gemini to explain the score to the buyer."""
     return f"""You are helping a BUYER on a Telegram marketplace decide whether a deal is safe.
 Our rule-based checker has already given this deal a risk score. Do NOT change the score.
@@ -256,7 +257,7 @@ Reply with ONLY a JSON object with exactly these fields:
   "next_steps": ["2 to 4 short, practical things the buyer should do next"]
 }}"""
 
-def validate_feedback(data):
+def validate_feedback(data: object) -> list[str]:
     """Check the feedback answer has a feedback text and a list of next steps."""
     if not isinstance(data, dict):
         return ["AI answer is not a JSON object"]
@@ -272,7 +273,7 @@ def validate_feedback(data):
                 problems.append("each next step must be text")
     return problems
 
-def generate_feedback(user_input, ai_output, score_result):
+def generate_feedback(user_input: dict, ai_output: dict, score_result: dict) -> dict:
     """AI stage 3: write feedback that explains the score.
     Returns {"ok": True, "data": {"feedback": ..., "next_steps": [...]}} or {"ok": False, "error": "..."}."""
     prompt = build_feedback_prompt(user_input, ai_output, score_result)

@@ -3,12 +3,12 @@
 MAX_SCORE = 5
 MISSING_INFO_LIMIT = 2
 
-def _get_list(ai_output, field):
+def _get_list(ai_output: dict, field: str) -> list:
     """Return a field as a list, or an empty list if it is invalid."""
     value = ai_output.get(field, [])
     return value if isinstance(value, list) else []
 
-def calculate_score(ai_output):
+def calculate_score(ai_output: dict) -> tuple[int, list[str]]:
     """Calculate a capped risk score and return its warning factors."""
     if not isinstance(ai_output, dict):
         ai_output = {}
@@ -73,7 +73,7 @@ def calculate_score(ai_output):
 
     return min(score, MAX_SCORE), risk_factors
 
-def score_to_level(score):
+def score_to_level(score: int) -> str:
     """Map a score from zero to MAX_SCORE to a risk category."""
     if score >= 4:
         return "High Risk"
@@ -81,7 +81,7 @@ def score_to_level(score):
         return "Medium Risk"
     return "Low Risk"
 
-def evaluate_risk(ai_output):
+def evaluate_risk(ai_output: dict) -> dict:
     """Return the risk assessment for the AI output dictionary."""
     if not isinstance(ai_output, dict):
         ai_output = {}
