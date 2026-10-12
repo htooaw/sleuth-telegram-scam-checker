@@ -27,17 +27,17 @@ FALLBACK_ADVICE = {
     "Low Risk": "No major warning signs. Still use a safe payment method.",
 }
 
-# Initialize records in session state
-if "records" not in st.session_state:
-    st.session_state.records = data_manager.load_records()
-
-os.makedirs(SCREENSHOT_FOLDER, exist_ok=True)
-
 # UI: Page Configuration & Theme
 st.set_page_config(
     page_title="Telegram Risk Assessor",
     layout="centered"
 )
+
+# Initialise records in session state
+if "records" not in st.session_state:
+    st.session_state.records = data_manager.load_records()
+
+os.makedirs(SCREENSHOT_FOLDER, exist_ok=True)
 
 # --- CSS STYLING ---
 st.markdown("""
@@ -70,7 +70,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 def run_async(coro):
     """Helper to run async Telethon functions inside Streamlit"""
     loop = asyncio.new_event_loop()
@@ -83,7 +82,6 @@ async def check_auth():
     is_auth = await client.is_user_authorized()
     await client.disconnect()
     return is_auth
-
 
 def show_telegram_login():
     """Sidebar login. Only shown in Telegram username mode."""
@@ -136,7 +134,6 @@ def show_telegram_login():
                 except Exception as e:
                     st.error(f"Failed: {e}")
 
-
 def get_messages(source, user_input, uploaded_files):
     """Read the chat for the chosen mode. Returns (messages, input_key) or (None, None)."""
     if source == "Telegram username":
@@ -170,7 +167,6 @@ def get_messages(source, user_input, uploaded_files):
         st.error(f"Could not read screenshots: {extraction['error']}")
         return None, None
     return extraction["data"], input_key
-
 
 def run_assessment(source, user_input, messages, input_key):
     """AI stage 2 + score + AI stage 3. Returns the record, or None if the AI failed."""
@@ -218,7 +214,6 @@ def run_assessment(source, user_input, messages, input_key):
             st.error("Could not save this check to the records file.")
 
     return record
-
 
 def show_result(record):
     """Show the score, the AI feedback and the warning signs."""
@@ -271,14 +266,13 @@ def show_result(record):
     if messages:
         with st.expander(f"Messages the AI read ({len(messages)})"):
             for message in messages:
-                text = message["text"].replace("$", "\\$")   # stop "$" being shown as maths
+                text = message["text"].replace("$", "\\$") # stop "$" being shown as maths
                 line = f"**{message['sender']}:** {text}"
                 if message["date"]:
                     line = f"`{message['date']}` " + line
                 st.markdown(line)
 
     st.caption("This is advice to help you decide, not proof that someone is a scammer.")
-
 
 def show_new_check():
     """Page 1: check a new deal, from screenshots or a Telegram username."""
@@ -288,7 +282,7 @@ def show_new_check():
     if source == "Telegram username":
         show_telegram_login()
 
-    # Each mode needs just one input: the screenshots, or the seller's username
+    # Each mode needs just one input: the screenshots or the seller's username
     uploaded_files = []
     if source == "Screenshots":
         chat = "Screenshots"
@@ -319,7 +313,6 @@ def show_new_check():
         if record is not None:
             show_result(record)
 
-
 def show_past_checks():
     """Page 2: list the saved checks, newest first, with a risk level filter."""
     choice = st.selectbox("Show which checks?", ["All", "High Risk", "Medium Risk", "Low Risk"])
@@ -346,7 +339,6 @@ def show_past_checks():
                 st.write(feedback["feedback"])
             for factor in result.get("risk_factors", []):
                 st.markdown(f"- {factor}")
-
 
 # ==========================================
 # MAIN PAGE
