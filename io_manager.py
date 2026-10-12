@@ -202,17 +202,38 @@ def fetch_chat_messages(chat):
         return [], "This chat has no text messages to check."
     return messages, None
 
+# Shown when the AI feedback could not be generated
+FALLBACK_ADVICE = {
+    "High Risk": "Do not pay. Stop the deal or insist on meeting in person.",
+    "Medium Risk": "Be careful. Ask for the missing details and avoid paying in advance.",
+    "Low Risk": "No major warning signs. Still use a safe payment method.",
+}
+
 def display_result(record):
-    """Print the result of one check."""
+    """Print the score, the AI feedback and the warning signs of one check."""
     result = record["result"]
     print()
     print("=" * 60)
     print("RESULT")
     print("=" * 60)
-    print("Risk level: " + result["risk_level"])
-    print("Reason:     " + result["reason"])
+    print("Risk score: " + str(result["score"]) + " / " + str(result["max_score"])
+          + " (" + result["risk_level"] + ")")
     if record["from_saved"]:
         print("(Same chat and details as before - reused the saved AI answer.)")
+
+    feedback = record.get("feedback")
+    if feedback:
+        print()
+        print("What this means:")
+        print(feedback["feedback"])
+        if feedback["next_steps"]:
+            print()
+            print("What to do next:")
+            for step in feedback["next_steps"]:
+                print(" - " + step)
+    else:
+        print()
+        print("What to do: " + FALLBACK_ADVICE[result["risk_level"]])
 
     if result["risk_factors"]:
         print()
@@ -233,7 +254,6 @@ def display_result(record):
             print(" - " + quote)
 
     print()
-    print("What to do: " + result["action"])
     print("Note: this is advice to help you decide, not proof that someone is a scammer.")
     print("=" * 60)
 
