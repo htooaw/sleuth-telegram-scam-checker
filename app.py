@@ -13,7 +13,7 @@ import io_manager
 # Load environment variables
 load_dotenv()
 
-# Use the same login file as io_manager, so logging in here lets fetch_chat_messages read chats
+# IMPORTANT: Use the same login file as io_manager, so logging in here lets fetch_chat_messages read chats
 SESSION_NAME = io_manager.SESSION_FILE
 API_ID = int(os.environ.get("TELEGRAM_API_ID", 0))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "")
@@ -70,7 +70,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 def run_async(coro):
     """Helper to run async Telethon functions inside Streamlit"""
     loop = asyncio.new_event_loop()
@@ -85,56 +84,66 @@ async def check_auth():
     return is_auth
 
 
-def show_telegram_login():
-    """Sidebar login. Only shown in Telegram username mode."""
-    with st.sidebar:
-        st.title("Telegram Login")
-        st.markdown("---")
+def render_inline_telegram_login():
+    """Inline login flow embedded inside the Telegram username mode."""
+    if "tg_authenticated" not in st.session_state:
+        try:
+            st.session_state.tg_authenticated = run_async(check_auth())
+        except Exception:
+            st.session_state.tg_authenticated = False
 
-        if "tg_authenticated" not in st.session_state:
-            try:
-                st.session_state.tg_authenticated = run_async(check_auth())
-            except Exception:
-                st.session_state.tg_authenticated = False
-
-        if st.session_state.tg_authenticated:
-            st.success("Logged in securely")
-            return
-
-        st.warning("Not logged in")
+    if not st.session_state.tg_authenticated:
+        st.info("🔐 **Authentication Required**: Please log in to Telegram to fetch live chat messages.")
         phone = st.text_input("Phone Number (e.g., +65...):")
 
         if "phone_hash" not in st.session_state:
             if st.button("Send Login Code"):
-                async def send_code():
-                    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
-                    await client.connect()
-                    res = await client.send_code_request(phone)
-                    await client.disconnect()
-                    return res.phone_code_hash
+                if not phone:
+                    st.error("Please enter a valid phone number.")
+                else:
+                    async def send_code():
+                        client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+                        await client.connect()
+                        res = await client.send_code_request(phone)
+                        await client.disconnect()
+                        return res.phone_code_hash
 
-                try:
-                    st.session_state.phone_hash = run_async(send_code())
-                    st.session_state.phone_number = phone
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Failed: {e}")
+                    try:
+                        st.session_state.phone_hash = run_async(send_code())
+                        st.session_state.phone_number = phone
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to send code: {e}")
         else:
             code = st.text_input("Enter 5-digit Telegram Code:")
-            if st.button("Complete Login"):
-                async def submit_code():
-                    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
-                    await client.connect()
-                    await client.sign_in(phone=st.session_state.phone_number, code=code, phone_code_hash=st.session_state.phone_hash)
-                    await client.disconnect()
+            col_a, col_b = st.columns([2, 1])
+            with col_a:
+                if st.button("Complete Login"):
+                    async def submit_code():
+                        client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+                        await client.connect()
+                        await client.sign_in(phone=st.session_state.phone_number, code=code, phone_code_hash=st.session_state.phone_hash)
+                        await client.disconnect()
 
-                try:
-                    run_async(submit_code())
-                    st.session_state.tg_authenticated = True
+                    try:
+                        run_async(submit_code())
+                        st.session_state.tg_authenticated = True
+                        del st.session_state["phone_hash"]
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Login failed: {e}")
+            with col_b:
+                if st.button("Cancel / Resend"):
                     del st.session_state["phone_hash"]
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Failed: {e}")
+    else:
+        auth_col1, auth_col2 = st.columns([4, 1])
+        with auth_col1:
+            st.success("✅ Authenticated with Telegram")
+        with auth_col2:
+            if st.button("Log Out"):
+                st.session_state.tg_authenticated = False
+                st.rerun()
 
 
 def get_messages(source, user_input, uploaded_files):
@@ -284,17 +293,19 @@ def show_new_check():
     """Page 1: check a new deal, from screenshots or a Telegram username."""
     source = st.radio("How do you want to share the chat?", ["Screenshots", "Telegram username"], horizontal=True)
 
-    # Only the username mode needs a Telegram login
-    if source == "Telegram username":
-        show_telegram_login()
-
-    # Each mode needs just one input: the screenshots, or the seller's username
     uploaded_files = []
+    chat = ""
+
     if source == "Screenshots":
         chat = "Screenshots"
         uploaded_files = st.file_uploader("Drag and drop chat screenshots here", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
     else:
-        chat = st.text_input("Seller's Telegram @username or link:", placeholder="@seller_admin").strip()
+        # Step 1: Render authentication inside the option view
+        render_inline_telegram_login()
+        
+        # Step 2: Show input only if authenticated
+        if st.session_state.get("tg_authenticated"):
+            chat = st.text_input("Seller's Telegram @username or link:", placeholder="@seller_admin").strip()
 
     # The AI works out the item and price from the chat itself
     user_input = {"chat": chat, "item": "", "price": 0.0, "details": ""}
@@ -305,7 +316,7 @@ def show_new_check():
         return
 
     if source == "Telegram username" and not st.session_state.get("tg_authenticated"):
-        st.error("Please log in to Telegram in the sidebar first.")
+        st.error("Please complete Telegram login above first.")
     elif source == "Telegram username" and not user_input["chat"]:
         st.error("Please enter the seller's Telegram @username or link.")
     elif source == "Screenshots" and not uploaded_files:
