@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Build the Docker image
+        run: docker build -t risk-assessor .
+
+      - name: Check all manager files import without errors
+        run: docker run --rm risk-assessor python -c "import ai_manager, data_manager, io_manager, logic_manager"
+
+      - name: Check the frontend starts
+        run: |
+          docker run -d --name app -p 8501:8501 risk-assessor
+          for i in $(seq 1 20); do
+            curl -fs http://localhost:8501/_stcore/health && exit 0
+            sleep 2
+          done
+          docker logs app
+          exit 1
