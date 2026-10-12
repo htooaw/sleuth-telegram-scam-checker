@@ -63,6 +63,7 @@ def test_score_never_goes_above_five():
         inconsistencies=["x"],
         social_engineering_tactics=["urgency"],
         missing_information=["a", "b"],
+        other_risk_indicators=["unusual instructions"],
     ))
     assert result["score"] == 5
     assert result["max_score"] == 5
@@ -113,7 +114,6 @@ def test_other_risk_indicators_add_one_point():
         for factor in result["risk_factors"]
     )
 
-
 def test_malformed_list_fields_do_not_crash():
     result = logic_manager.evaluate_risk(
         {
@@ -129,3 +129,12 @@ def test_malformed_list_fields_do_not_crash():
     assert result["missing_information"] == []
     assert result["evidence"] == []
     assert result["risk_factors"] == []
+
+def test_non_dictionary_input_does_not_crash():
+    result = logic_manager.evaluate_risk(None)
+
+    assert result["score"] == 0
+    assert result["risk_level"] == "Low Risk"
+    assert result["risk_factors"] == []
+    assert result["missing_information"] == []
+    assert result["evidence"] == []
