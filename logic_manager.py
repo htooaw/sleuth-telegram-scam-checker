@@ -29,6 +29,16 @@ def calculate_score(ai_output):
             "Payment method looks unsafe or unusual"
         )
 
+    # Multi-condition rule: advance-fee request combined with low payment plausibility is a stronger warning pattern
+    if (
+        ai_output.get("advance_fee_detected") is True
+        and ai_output.get("payment_plausibility") == "Low"
+    ):
+        score += 1
+        risk_factors.append(
+            "Combined warning: advance-fee request and low payment plausibility"
+        )    
+
     if ai_output.get("payment_diversion_detected") is True:
         score += 1
         risk_factors.append(

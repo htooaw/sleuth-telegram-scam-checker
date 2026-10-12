@@ -52,7 +52,7 @@ def test_classic_scam_pattern_is_high_risk():
         payment_plausibility="Low",
         inconsistencies=["seller name differs from PayNow name"],
     ))
-    assert result["score"] == 4
+    assert result["score"] == 5
     assert result["risk_level"] == "High Risk"
 
 def test_score_never_goes_above_five():
@@ -138,3 +138,31 @@ def test_non_dictionary_input_does_not_crash():
     assert result["risk_factors"] == []
     assert result["missing_information"] == []
     assert result["evidence"] == []
+
+def test_combined_advance_fee_and_low_plausibility_adds_bonus():
+    output = make_ai_output(
+        advance_fee_detected=True,
+        payment_plausibility="Low",
+    )
+
+    result = logic_manager.evaluate_risk(output)
+
+    assert result["score"] == 4  # 2 + 1 + 1
+    assert any(
+        "Combined warning" in factor
+        for factor in result["risk_factors"]
+    )
+
+def test_combined_rule_does_not_apply_without_both_conditions():
+    output = make_ai_output(
+        advance_fee_detected=True,
+        payment_plausibility="Medium",
+    )
+
+    result = logic_manager.evaluate_risk(output)
+
+    assert result["score"] == 2
+    assert not any(
+        "Combined warning" in factor
+        for factor in result["risk_factors"]
+    )
