@@ -32,6 +32,15 @@ EXPECTED_FIELDS = {
 }
 PLAUSIBILITY_VALUES = ["High", "Medium", "Low"]
 
+def describe_deal(user_input):
+    """Deal details for the prompts. The frontend only asks for the chat, so these may be empty."""
+    if not user_input.get("item"):
+        return "The buyer did not type any deal details. Work out the item, price and payment terms from the chat."
+    details = user_input["details"] if user_input.get("details") else "None"
+    return f"""- Item: {user_input['item']}
+- Agreed price: SGD {user_input['price']:.2f}
+- Extra details: {details}"""
+
 # Define a function to construct the prompt and format the chat history for stage 2 scam analysis
 def build_prompt(user_input, messages):
     """Create the instructions and chat text we send to Gemini."""
@@ -40,15 +49,11 @@ def build_prompt(user_input, messages):
         chat_lines.append("[" + message["date"] + "] " + message["sender"] + ": " + message["text"])
     chat_text = "\n".join(chat_lines)
 
-    details = user_input["details"] if user_input["details"] else "None"
-
     return f"""You are a fraud analyst checking a Telegram marketplace deal for a BUYER.
 Messages from the buyer are labelled "You". Judge only what is in the chat.
 
 Deal details from the buyer:
-- Item: {user_input['item']}
-- Agreed price: SGD {user_input['price']:.2f}
-- Extra details: {details}
+{describe_deal(user_input)}
 
 Telegram chat ({len(messages)} messages, oldest first):
 {chat_text}
@@ -237,8 +242,7 @@ Our rule-based checker has already given this deal a risk score. Do NOT change t
 Explain it in simple, friendly language and tell the buyer what to do next.
 
 Deal:
-- Item: {user_input['item']}
-- Agreed price: SGD {user_input['price']:.2f}
+{describe_deal(user_input)}
 
 Risk score: {score_result['score']} out of {score_result['max_score']} ({score_result['risk_level']})
 Warning signs found: {json.dumps(score_result['risk_factors'])}
