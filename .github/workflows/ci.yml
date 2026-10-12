@@ -1,10 +1,14 @@
-name: CI
+name: CI/CD
 
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build:
@@ -14,11 +18,13 @@ jobs:
       - name: Check out the code
         uses: actions/checkout@v4
 
+      # ---------- CI: check every pull request ----------
+
       - name: Build the Docker image
         run: docker build -t risk-assessor .
 
       - name: Check all manager files import without errors
-        run: docker run --rm risk-assessor python -c "import ai_manager, data_manager, io_manager, logic_manager"
+        run: docker run --rm risk-assessor python -c "import ai_manager, data_manager, io_manager, logic_manager, main"
 
       - name: Run the tests inside Docker
         run: docker run --rm risk-assessor python -m pytest -q
@@ -32,3 +38,20 @@ jobs:
           done
           docker logs app
           exit 1
+
+      # ---------- CD: publish the image after every merge to main ----------
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Publish the Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          SHORT_SHA="$(echo "$GITHUB_SHA" | cut -c1-7)"
+          docker tag risk-assessor "$IMAGE:latest"
+          docker tag risk-assessor "$IMAGE:$SHORT_SHA"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$SHORT_SHA"
+          echo "Published $IMAGE:latest and $IMAGE:$SHORT_SHA"
