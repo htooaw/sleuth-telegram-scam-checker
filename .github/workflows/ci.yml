@@ -20,6 +20,9 @@ jobs:
       - name: Check all manager files import without errors
         run: docker run --rm risk-assessor python -c "import ai_manager, data_manager, io_manager, logic_manager"
 
+      - name: Run the tests inside Docker
+        run: docker run --rm risk-assessor python -m pytest -q
+
       - name: Check the frontend starts
         run: |
           docker run -d --name app -p 8501:8501 risk-assessor
