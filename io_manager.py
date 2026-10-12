@@ -1,34 +1,18 @@
-def display_result(record):
-    """Print the result of one check."""
-    result = record["result"]
+def ask_history_filter():
     print()
-    print("=" * 60)
-    print("RESULT")
-    print("=" * 60)
-    print("Risk level: " + result["risk_level"])
-    print("Reason:     " + result["reason"])
-    if record["from_saved"]:
-        print("(Same chat and details as before - reused the saved AI answer.)")
-
-    if result["risk_factors"]:
-        print()
-        print("Warning signs:")
-        for factor in result["risk_factors"]:
-            print(" - " + factor)
-
-    if result["missing_information"]:
-        print()
-        print("Missing information:")
-        for item in result["missing_information"]:
-            print(" - " + item)
-
-    if result["evidence"]:
-        print()
-        print("Evidence from the chat:")
-        for quote in result["evidence"]:
-            print(" - " + quote)
-
-    print()
-    print("What to do: " + result["action"])
-    print("Note: this is advice to help you decide, not proof that someone is a scammer.")
-    print("=" * 60)
+    print("Show which checks?")
+    print("1. All")
+    print("2. High Risk only")
+    print("3. Medium Risk only")
+    print("4. Low Risk only")
+    while True:
+        choice = input("Choose 1-4: ").strip()
+        if choice == "1":
+            return None              # None means "show everything"
+        if choice == "2":
+            return "High Risk"
+        if choice == "3":
+            return "Medium Risk"
+        if choice == "4":
+            return "Low Risk"
+        show_error("Please type 1, 2, 3 or 4.")
