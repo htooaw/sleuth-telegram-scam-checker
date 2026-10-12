@@ -277,25 +277,16 @@ def show_new_check():
     if source == "Telegram username":
         show_telegram_login()
 
-    user_input = {}
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if source == "Telegram username":
-            user_input["chat"] = st.text_input("Telegram Chat (@username or link):", placeholder="@seller_admin")
-        else:
-            user_input["chat"] = st.text_input("Seller Handle (Optional):", value="") or "Screenshots"
-    with col2:
-        user_input["item"] = st.text_input("Item Name:", placeholder="e.g., Vintage OOTD Set")
-
-    col3, col4 = st.columns([1, 1])
-    with col3:
-        user_input["price"] = float(st.number_input("Agreed Price (SGD):", min_value=0.0, step=1.0, value=0.0))
-    with col4:
-        user_input["details"] = st.text_input("Extra Details (Optional):", value="", placeholder="e.g., meetup vs delivery")
-
+    # Each mode needs just one input: the screenshots, or the seller's username
     uploaded_files = []
     if source == "Screenshots":
+        chat = "Screenshots"
         uploaded_files = st.file_uploader("Drag and drop chat screenshots here", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True)
+    else:
+        chat = st.text_input("Seller's Telegram @username or link:", placeholder="@seller_admin").strip()
+
+    # The AI works out the item and price from the chat itself
+    user_input = {"chat": chat, "item": "", "price": 0.0, "details": ""}
 
     st.markdown("---")
 
@@ -306,10 +297,6 @@ def show_new_check():
         st.error("Please log in to Telegram in the sidebar first.")
     elif source == "Telegram username" and not user_input["chat"]:
         st.error("Please enter the seller's Telegram @username or link.")
-    elif not user_input["item"]:
-        st.error("Please enter the item name.")
-    elif user_input["price"] <= 0:
-        st.error("Please enter the agreed price.")
     elif source == "Screenshots" and not uploaded_files:
         st.error("Please upload at least one screenshot.")
     else:
@@ -339,7 +326,8 @@ def show_past_checks():
         result = record["result"]
         score = result.get("score")
         score_text = f"{score}/{result.get('max_score', logic_manager.MAX_SCORE)}" if score is not None else "no score"
-        title = f"{record['time']} | {deal['item']} | SGD {deal['price']:.2f} | {result['risk_level']} ({score_text})"
+        what = deal.get("item") or record.get("ai_output", {}).get("transaction_summary", "")
+        title = f"{record['time']} | {deal['chat']} | {what[:60]} | {result['risk_level']} ({score_text})"
         with st.expander(title):
             st.write(f"**Seller / chat:** {deal['chat']}")
             feedback = record.get("feedback")
