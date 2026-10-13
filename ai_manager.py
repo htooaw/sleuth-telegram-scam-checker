@@ -15,7 +15,7 @@ from google import genai
 # Import types from the Google GenAI SDK for configuration and multimodal content parts
 from google.genai import types
 
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "gemini-3.5-flash-lite, gemini-3.5-turbo"
 MAX_ATTEMPTS = 3
 WAIT_SECONDS = 2
 

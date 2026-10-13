@@ -68,7 +68,6 @@ st.markdown(
             padding-bottom: 2rem;
         }
 
-        /* Modernise buttons */
         .stButton>button {
             width: 100%;
             border-radius: 8px;
@@ -76,6 +75,8 @@ st.markdown(
             background-color: #ff4b4b;
             color: white;
             transition: all 0.3s ease;
+            height: 100%;
+            width: 100%;
         }
 
         .stButton>button:hover {
@@ -87,6 +88,10 @@ st.markdown(
         h1 {
             color: #1f2937;
             font-weight: 800;
+        }
+
+        /* Vertical alignment for columns */
+        [data-testid="stHorizontalBlock"]
         }
     </style>
     """,
@@ -231,7 +236,7 @@ def render_inline_telegram_login():
                             st.error(f"Telegram login failed: {exc}")
 
             with col_b:
-                if st.button("Cancel / Resend"):
+                if st.button("Cancel"):
                     st.session_state.pop("phone_hash", None)
                     st.session_state.pop("phone_number", None)
                     st.rerun()
@@ -788,3 +793,4 @@ if page == "Check a new deal":
     show_new_check()
 else:
     show_past_checks()
+    
