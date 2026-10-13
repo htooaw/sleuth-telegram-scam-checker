@@ -166,3 +166,23 @@ def test_combined_rule_does_not_apply_without_both_conditions():
         "Combined warning" in factor
         for factor in result["risk_factors"]
     )
+
+
+def test_ai_falls_back_to_second_model(monkeypatch):
+    """If the first Gemini model keeps failing, the next model in MODELS is used."""
+    calls = []
+
+    def fake_call_gemini(contents, api_key, model):
+        calls.append(model)
+        if model == ai_manager.MODELS[0]:
+            raise RuntimeError("503 UNAVAILABLE")
+        return '{"feedback": "Risky deal.", "next_steps": ["Meet in person"]}'
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(ai_manager, "WAIT_SECONDS", 0)
+    monkeypatch.setattr(ai_manager, "call_gemini", fake_call_gemini)
+
+    result = ai_manager.ask_gemini("prompt", ai_manager.validate_feedback)
+
+    assert result["ok"] is True
+    assert calls == [ai_manager.MODELS[0]] * ai_manager.MAX_ATTEMPTS + [ai_manager.MODELS[1]]

@@ -75,8 +75,6 @@ st.markdown(
             background-color: #ff4b4b;
             color: white;
             transition: all 0.3s ease;
-            height: 100%;
-            width: 100%;
         }
 
         .stButton>button:hover {
@@ -88,10 +86,6 @@ st.markdown(
         h1 {
             color: #1f2937;
             font-weight: 800;
-        }
-
-        /* Vertical alignment for columns */
-        [data-testid="stHorizontalBlock"]
         }
     </style>
     """,
@@ -200,10 +194,10 @@ def render_inline_telegram_login():
                 key="telegram_login_code",
             ).strip()
 
-            col_a, col_b = st.columns([2, 1])
+            col_a, col_b = st.columns(2)
 
             with col_a:
-                if st.button("Complete Login"):
+                if st.button("Complete Login", width="stretch"):
                     if not code:
                         st.error("Please enter the login code.")
                     else:
@@ -236,19 +230,19 @@ def render_inline_telegram_login():
                             st.error(f"Telegram login failed: {exc}")
 
             with col_b:
-                if st.button("Cancel"):
+                if st.button("Cancel", width="stretch"):
                     st.session_state.pop("phone_hash", None)
                     st.session_state.pop("phone_number", None)
                     st.rerun()
 
     else:
-        auth_col1, auth_col2 = st.columns([4, 1])
+        auth_col1, auth_col2 = st.columns([4, 1], vertical_alignment="center")
 
         with auth_col1:
             st.success("✅ Authenticated with Telegram")
 
         with auth_col2:
-            if st.button("Log Out"):
+            if st.button("Log Out", width="stretch"):
                 # Reset the UI authentication state.
                 st.session_state.tg_authenticated = False
                 st.session_state.pop("phone_hash", None)
@@ -793,4 +787,3 @@ if page == "Check a new deal":
     show_new_check()
 else:
     show_past_checks()
-    

@@ -15,7 +15,8 @@ from google import genai
 # Import types from the Google GenAI SDK for configuration and multimodal content parts
 from google.genai import types
 
-MODEL = "gemini-3.5-flash-lite, gemini-3.5-turbo"
+# Tried in order; the next model is used only if the previous one keeps failing
+MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 MAX_ATTEMPTS = 3
 WAIT_SECONDS = 2
 
@@ -115,12 +116,12 @@ def parse_ai_text(text: str, validate_function: Callable[[object], list[str]] = 
     return data, []
 
 # Define a function to send a content request directly to the Gemini API using the Google GenAI client
-def call_gemini(contents: str | list, api_key: str) -> str:
+def call_gemini(contents: str | list, api_key: str, model: str) -> str:
     """Send one request to Gemini and return its text answer.
     contents is the prompt text, or a list of images plus the prompt."""
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model=MODEL,
+        model=model,
         contents=contents,
         config=types.GenerateContentConfig(
             temperature=0,  # as consistent as possible
@@ -140,23 +141,27 @@ def ask_gemini(contents: str | list, validate_function: Callable[[object], list[
         return {"ok": False, "error": "GEMINI_API_KEY is missing from the .env file"}
 
     last_error = ""
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            text = call_gemini(contents, api_key)
-        except Exception as error:  # network problem, bad key, server busy...
-            last_error = "could not reach Gemini (" + str(error)[:150] + ")"
-        else:
-            data, problems = parse_ai_text(text, validate_function)
-            if data is not None:
-                return {"ok": True, "data": data}
-            last_error = "invalid AI answer (" + "; ".join(problems) + ")"
+    for model in MODELS:
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                text = call_gemini(contents, api_key, model)
+            except Exception as error:  # model unavailable, network problem, bad key, server busy...
+                last_error = model + ": could not reach Gemini (" + str(error)[:150] + ")"
+            else:
+                data, problems = parse_ai_text(text, validate_function)
+                if data is not None:
+                    return {"ok": True, "data": data}
+                last_error = model + ": invalid AI answer (" + "; ".join(problems) + ")"
 
-        logging.warning("AI attempt %d of %d failed: %s", attempt, MAX_ATTEMPTS, last_error)
-        if attempt < MAX_ATTEMPTS:
-            time.sleep(WAIT_SECONDS)
+            logging.warning("%s attempt %d of %d failed: %s", model, attempt, MAX_ATTEMPTS, last_error)
+            if attempt < MAX_ATTEMPTS:
+                time.sleep(WAIT_SECONDS)
 
-    logging.error("AI analysis gave up after %d attempts", MAX_ATTEMPTS)
-    return {"ok": False, "error": last_error + " after " + str(MAX_ATTEMPTS) + " attempts"}
+        if model != MODELS[-1]:
+            logging.warning("Switching from %s to the next model", model)
+
+    logging.error("AI analysis gave up after trying all models")
+    return {"ok": False, "error": last_error + " (all models failed)"}
 
 # Define a high-level function for stage 2 to analyze chat content for fraud warning signs
 def analyze_chat(user_input: dict, messages: list[dict]) -> dict:
