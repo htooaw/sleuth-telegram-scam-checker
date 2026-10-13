@@ -793,3 +793,4 @@ if page == "Check a new deal":
     show_new_check()
 else:
     show_past_checks()
+    
