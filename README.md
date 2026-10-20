@@ -1,6 +1,8 @@
-# Telegram Marketplace Risk Assessor
+# SLEUTH
 
-INF1103 Lab P3, Group 3
+**Scam Likelihood Estimation Using Telegram History.** Check a Telegram deal before you pay.
+
+A team project for INF1103 at the Singapore Institute of Technology.
 
 A tool that helps buyers on Telegram marketplaces check whether a deal looks like a scam. The buyer shares the chat with the seller, and the app returns a **risk score from 0 to 5**, the warning signs it found, and AI-written advice on what to do next.
 
@@ -115,3 +117,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every
 | `data/screenshots/` | Screenshots for the current check |
 | `data/telegram.session` | Saved Telegram login |
 | `data/app.log` | Warnings, such as failed AI attempts |
+
+## Team
+
+Built by a team of six: Htoo Aung Win, jiawen, fariha, ian, jiaxin and keisha.
+
+**My part (Htoo Aung Win):** the DevOps side: the Docker setup and the CI/CD pipeline in GitHub Actions, which builds the image, runs the tests inside the container, health-checks the web app and publishes the image to GHCR. I also built the screenshot OCR stage with jiawen, using Gemini's vision input to turn chat screenshots into text.
