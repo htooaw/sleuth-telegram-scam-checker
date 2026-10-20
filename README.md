@@ -122,4 +122,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every
 
 Built by a team of six: Me, jiawen, fariha, ian, jiaxin and keisha.
 
-**My part (Htoo):** the DevOps side: the Docker setup and the CI/CD pipeline in GitHub Actions, which builds the image, runs the tests inside the container, health-checks the web app and publishes the image to GHCR. I also built the Gemini stages with jiawen.
+**My part (Htoo):**
+
+- The DevOps side: the Docker setup and the CI/CD pipeline in GitHub Actions, which builds the image, runs the tests inside the container, health-checks the web app and publishes the image to GHCR.
+- The command-line app, and a rewrite of the automated tests in pytest so the pipeline runs them on every change.
+- The three Gemini stages, with jiawen.
